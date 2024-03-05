@@ -1,2 +1,48 @@
+#%%
+import gurobipy as gp
+from gurobipy import GRB
+
 import pandas as pd
-df = pd.read_csv('nonprofits.csv')
+df = pd.read_csv('https://raw.githubusercontent.com/supragyabajpai/SchulichJourney_PredectiveModeling/main/non_profits.csv')
+df.head()
+
+
+alpha_values = df['alpha_i'].tolist()
+beta_values = df['beta_i'].tolist()
+
+model = gp.Model("Nonprofit_Optimization")
+
+# Decision variables
+num_nonprofits = len(alpha_values)
+allocations = model.addVars(num_nonprofits, lb=0, vtype=GRB.CONTINUOUS, name="allocations")
+
+# Objective function
+obj_expr = gp.LinExpr()
+for i in range(num_nonprofits):
+    obj_expr += (allocations[i] * alpha_values[i]) - 0.5 * (allocations[i] ** (2/3)) + 2 * (allocations[i] ** (1/3)) * beta_values[i]
+model.setObjective(obj_expr, sense=GRB.MAXIMIZE)
+
+# Budget constraint
+budget_constraint = model.addConstr(gp.quicksum(allocations[i] for i in range(num_nonprofits)) <= 50000000, "Budget")
+
+# Step 3: Solve the Optimization Problem
+model.optimize()
+
+# Step 4: Analyze the Results
+# (a) Effort level e*_i for each nonprofit can be obtained from the allocation
+for i in range(num_nonprofits):
+    allocation = allocations[i].x
+    optimal_effort = (beta_values[i] * allocation) ** (1/3)
+    print(f"Nonprofit {i+1}: Optimal Effort = {optimal_effort}")
+
+# (b) Total output value
+total_output = model.objVal
+print("Total Output Value:", total_output)
+
+# (c) Allocation of budget
+budget_allocation = budget_constraint.Pi
+print("Allocation of Budget:", budget_allocation)
+
+# (d) Nonprofits receiving no funding
+nonfunded_nonprofits = sum(1 for i in range(num_nonprofits) if allocations[i].x == 0)
+print("Nonprofits receiving no funding:", nonfunded_nonprofits)
